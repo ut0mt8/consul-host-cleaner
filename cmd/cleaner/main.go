@@ -21,7 +21,7 @@ func main() {
 	var conf config
 
 	log := hclog.New(&hclog.LoggerOptions{
-		Name: "syncer",
+		Name: "cleaner",
 	})
 
 	flag.StringVar(&conf.addresses, "consul-addresses", "", "go-netaddrs formated consul servers defintion [REQUIRED]")
@@ -54,6 +54,7 @@ func main() {
 	for range time.NewTicker(time.Duration(conf.interval) * time.Second).C {
 		log.Info("clean fired")
 
+		// first handle left or failed members from gossip
 		nodes, err := cm.GetFailedMembers()
 		if err != nil {
 			log.Error("consul get failed members", "error", hclog.Fmt("%s", err))
@@ -68,5 +69,22 @@ func main() {
 				log.Error("pruning", "member", hclog.Fmt("%s", node), "error", hclog.Fmt("%s", err))
 			}
 		}
+
+		// second clean up catalog from reliquas
+		nodes, err = cm.GetEmptyNodes()
+		if err != nil {
+			log.Error("consul get empty nodes", "error", hclog.Fmt("%s", err))
+			continue
+		}
+
+		for _, node := range nodes {
+			log.Info("deregistering from catalog", "node", hclog.Fmt("%s", node))
+
+			err = cm.DeregisterNode(node)
+			if err != nil {
+				log.Error("deregistering from catalog", "node", hclog.Fmt("%s", node), "error", hclog.Fmt("%s", err))
+			}
+		}
+
 	}
 }

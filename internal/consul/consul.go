@@ -130,6 +130,41 @@ func (cm *ConsulManager) GetFailedMembers() (nodes []string, err error) {
 	return nodes, nil
 }
 
+func (cm *ConsulManager) GetEmptyNodes() (nodes []string, err error) {
+	err = cm.renewClient()
+	if err != nil {
+		return nil, err
+	}
+
+	members, err := cm.client.Agent().Members(false)
+	if err != nil {
+		return nil, err
+	}
+
+	catalogNodes, _, err := cm.client.Catalog().Nodes(&capi.QueryOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, node := range catalogNodes {
+		found := false
+		for _, member := range members {
+			if member.Name == node.Node {
+				found = true
+				break
+			}
+		}
+
+		// assume external host are registed with localhost
+		if found || node.Address == "127.0.0.1" {
+			continue
+		}
+		nodes = append(nodes, node.Node)
+	}
+
+	return nodes, nil
+}
+
 func (cm *ConsulManager) ForceLeavePrune(node string) (err error) {
 	err = cm.renewClient()
 	if err != nil {
@@ -137,6 +172,22 @@ func (cm *ConsulManager) ForceLeavePrune(node string) (err error) {
 	}
 
 	err = cm.client.Agent().ForceLeavePrune(node)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (cm *ConsulManager) DeregisterNode(node string) (err error) {
+	err = cm.renewClient()
+	if err != nil {
+		return err
+	}
+
+	_, err = cm.client.Catalog().Deregister(&capi.CatalogDeregistration{
+		Node: node,
+	}, &capi.WriteOptions{})
 	if err != nil {
 		return err
 	}
