@@ -1,4 +1,5 @@
-Implement a small daemon to reap left and failed nodes on consul
+Implement a small daemon to reap left and failed nodes on consul ; also clean some scories from catalog.
+
 
 ```
 Usage of ./cleaner:
